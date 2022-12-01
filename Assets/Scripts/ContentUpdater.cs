@@ -1,3 +1,5 @@
+using System;
+using Newtonsoft.Json;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -18,7 +20,48 @@ public class ContentUpdater : MonoBehaviour
     public void LoadRemoteData()
     {
         this.HideButtonsAndShowLoadingBar();
-        this.contentView.ShowMessage("Downloaded data will be shown here.");
+        LoginToPlayFab(FetchTitleData);
+    }
+
+    private void LoginToPlayFab(Action onLoggedIn)
+    {
+        SetLoadingMessage("Logging in");
+
+        var request = new PlayFab.ClientModels.LoginWithCustomIDRequest
+        {
+            CustomId = SystemInfo.deviceUniqueIdentifier,
+            CreateAccount = true,
+        };
+
+        PlayFab.PlayFabClientAPI.LoginWithCustomID(
+            request,
+            _ => onLoggedIn?.Invoke(),
+            error => contentView.ShowMessage($"Error:\n {error.ErrorMessage}"));
+    }
+
+    private void FetchTitleData()
+    {
+        SetLoadingMessage("Fetching content");
+
+        // Request ALL title data key-value pairs as Dictionary<string, string>
+        var request = new PlayFab.ClientModels.GetTitleDataRequest();
+
+        PlayFab.PlayFabClientAPI.GetTitleData(
+            request,
+            result =>
+            {
+                SetLoadingMessage("Processing the result");
+
+                var downloadedData = new ContentData
+                {
+                    IntValue = int.Parse(result.Data["IntValue"]),
+                    BoolValue = bool.Parse(result.Data["BoolValue"]),
+                    StringValue = result.Data["StringValue"],
+                    ComplexValue = JsonConvert.DeserializeObject<ContentData.ComplexData>(result.Data["ComplexValue"]),
+                };
+                contentView.ShowWithData(downloadedData);
+            },
+            error => contentView.ShowMessage($"Error:\n {error.ErrorMessage}"));
     }
 
     private void HideButtonsAndShowLoadingBar()
