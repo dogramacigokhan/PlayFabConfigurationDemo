@@ -1,5 +1,6 @@
 using System;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -52,13 +53,8 @@ public class ContentUpdater : MonoBehaviour
             {
                 SetLoadingMessage("Processing the result");
 
-                var downloadedData = new ContentData
-                {
-                    IntValue = int.Parse(result.Data["IntValue"]),
-                    BoolValue = bool.Parse(result.Data["BoolValue"]),
-                    StringValue = result.Data["StringValue"],
-                    ComplexValue = JsonConvert.DeserializeObject<ContentData.ComplexData>(result.Data["ComplexValue"]),
-                };
+                var jObject = JObject.FromObject(result.Data);
+                var downloadedData = JsonConvert.DeserializeObject<ContentData>(jObject.ToString(), new SerializedValueConverter());
                 contentView.ShowWithData(downloadedData);
             },
             error => contentView.ShowMessage($"Error:\n {error.ErrorMessage}"));
