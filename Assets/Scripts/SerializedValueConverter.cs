@@ -1,5 +1,5 @@
+#nullable enable
 using System;
-using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
@@ -8,31 +8,41 @@ public class SerializedValueConverter : JsonConverter
 {
     public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
     {
-        if (value == null)
-        {
-            writer.WriteNull();
-            return;
-        }
+        var contractResolver = serializer.ContractResolver as DefaultContractResolver;
 
-        var jObject = new JObject();
-        var type = value.GetType();
+        writer.WriteStartObject();
 
-        foreach (var prop in type.GetProperties())
+        var properties = value.GetType().GetProperties();
+        foreach (var property in properties)
         {
-            if (prop.CanRead)
+            var isSimpleType =
+                property.PropertyType.IsPrimitive
+                || property.PropertyType == typeof(string)
+                || property.PropertyType == typeof(DateTime)
+                || property.PropertyType.IsValueType;
+
+            if (isSimpleType)
             {
-                var propVal = prop.GetValue(value, null);
-                if (propVal != null)
+                writer.WritePropertyName(contractResolver?.GetResolvedPropertyName(property.Name) ?? property.Name);
+                var propertyValue = property.GetValue(value);
+                if (propertyValue == null)
                 {
-                    var jToken = JToken.FromObject(propVal, serializer);
-                    var attribute = prop.GetCustomAttribute<JsonPropertyAttribute>();
-                    var name = attribute?.PropertyName ?? prop.Name;
-                    jObject.Add(name, jToken);
+                    writer.WriteNull();
                 }
+                else
+                {
+                    writer.WriteValue(propertyValue);
+                }
+            }
+            else
+            {
+                writer.WritePropertyName(contractResolver?.GetResolvedPropertyName(property.Name) ?? property.Name);
+                string serializedComplexProperty = JsonConvert.SerializeObject(property.GetValue(value), serializer.Formatting, new JsonSerializerSettings { ContractResolver = contractResolver });
+                writer.WriteValue(serializedComplexProperty);
             }
         }
 
-        jObject.WriteTo(writer);
+        writer.WriteEndObject();
     }
 
     // Original implementation: https://stackoverflow.com/a/62265454
@@ -95,6 +105,10 @@ public class SerializedValueConverter : JsonConverter
                 else if (property.PropertyType == typeof(string))
                 {
                     value = token.ToString();
+                }
+                else if (property.PropertyType?.IsValueType == true || property.PropertyType?.IsPrimitive == true)
+                {
+                    value = token.ToObject(property.PropertyType)!;
                 }
                 else
                 {
