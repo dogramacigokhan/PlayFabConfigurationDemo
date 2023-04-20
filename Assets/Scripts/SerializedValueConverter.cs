@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
@@ -21,9 +22,15 @@ public class SerializedValueConverter : JsonConverter
                 || property.PropertyType == typeof(DateTime)
                 || property.PropertyType.IsValueType;
 
+            var propertyName =
+                property.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName
+                ?? contractResolver?.GetResolvedPropertyName(property.Name)
+                ?? property.Name;
+
+            writer.WritePropertyName(propertyName);
+
             if (isSimpleType)
             {
-                writer.WritePropertyName(contractResolver?.GetResolvedPropertyName(property.Name) ?? property.Name);
                 var propertyValue = property.GetValue(value);
                 if (propertyValue == null)
                 {
@@ -36,8 +43,11 @@ public class SerializedValueConverter : JsonConverter
             }
             else
             {
-                writer.WritePropertyName(contractResolver?.GetResolvedPropertyName(property.Name) ?? property.Name);
-                string serializedComplexProperty = JsonConvert.SerializeObject(property.GetValue(value), serializer.Formatting, new JsonSerializerSettings { ContractResolver = contractResolver });
+                string serializedComplexProperty = JsonConvert.SerializeObject(
+                    property.GetValue(value),
+                    serializer.Formatting,
+                    new JsonSerializerSettings { ContractResolver = contractResolver });
+
                 writer.WriteValue(serializedComplexProperty);
             }
         }
